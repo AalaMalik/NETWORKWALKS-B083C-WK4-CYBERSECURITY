@@ -29,3 +29,57 @@ Testing identified multiple critical vulnerabilities, most notably an unauthenti
   Disallow: /patient/
   Disallow: /staff/
   Disallow: /old/
+
+  ## 4. Findings and Proof of Exploitation
+
+### Finding 1: SQL Injection in Patient Portal Authentication
+* **Location:** `/patient/login.php`
+* **Severity:** Critical
+* **Description:** User-supplied input in the username field was improperly concatenated directly into backend database queries without parameterization, returning verbose MySQL syntax errors and permitting authentication bypass via payload manipulation (e.g., `admin' -- -`).
+* **Evidence:** 
+  
+  ![Screenshot: Patient Portal MySQL Error / Successful Bypass Dashboard](docs/images/placeholder_sqli.png)
+
+### Finding 2: Insufficient Password Protection of Patient Reports
+* **Location:** Downloaded patient report files (`patient_report_*.pdf`)
+* **Severity:** High
+* **Description:** Patient pathology files were protected using weak document-level passwords susceptible to dictionary and brute-force attacks once extracted using tools like `pdf2john` and cracked using expanded wordlists.
+* **Evidence:** 
+  
+  ![Screenshot: PDF Hash Extraction and Password Recovery Results](docs/images/placeholder_pdf_crack.png)
+
+### Finding 3: Sensitive Metadata Exposure in PDF Files
+* **Location:** `patient_report_3.pdf`
+* **Severity:** Medium
+* **Description:** Metadata analysis using `exiftool` revealed internal author accounts (`j.malik`) and developer comments pointing to backup migration paths (`DB backup moved to /old before site migration`).
+* **Evidence:** 
+  
+  ![Screenshot: Exiftool Metadata Output Displaying IT Notes](docs/images/placeholder_exiftool.png)
+
+### Finding 4: Publicly Accessible Database Backup & Directory Listing
+* **Location:** `/old/` directory (`/old/mediroza_db_backup_2019.sql`)
+* **Severity:** Critical
+* **Description:** The legacy directory was explicitly disclosed via `robots.txt` and permitted public directory browsing, exposing an unauthenticated raw SQL database dump containing confidential staff salaries and shareholder records.
+* **Evidence:** 
+  
+  ![Screenshot: Directory Listing of /old/ and SQL Backup File](docs/images/placeholder_dir_listing.png)
+
+---
+
+## 5. Risk Rating Summary
+
+| Finding ID | Vulnerability Description | Location | Risk Level | Exploited |
+| :--- | :--- | :--- | :--- | :--- |
+| **F-01** | SQL Injection Authentication Bypass | `/patient/login.php` | Critical | Yes |
+| **F-02** | Weak PDF Document Passwords | Patient Reports | High | Yes |
+| **F-03** | Sensitive PDF Metadata Disclosure | `patient_report_3.pdf` | Medium | Yes |
+| **F-04** | Public Database Backup Exposure | `/old/` | Critical | Yes |
+
+---
+
+## 6. Recommendations and Remediation
+
+* **SQL Injection:** Rewrite authentication logic to use parameterized queries and prepared statements rather than raw string concatenation. Suppress verbose database error messages from returning to client interfaces.
+* **Document Security:** Ensure sensitive medical records are stored behind robust portal access controls rather than relying solely on weak, easily crackable client-side PDF document passwords.
+* **Metadata Sanitization:** Strip all identifying internal metadata (authors, comments, operational notes) from released documents prior to distribution using tools like `exiftool -all=`.
+* **Directory & Backup Hygiene:** Immediately remove backup archives from web-accessible directories, enforce strict file-system permissions, and disable directory indexing across all web servers.
